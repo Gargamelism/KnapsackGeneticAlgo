@@ -1,0 +1,54 @@
+{
+  "items": [
+    {
+      "name": "Peacock, blue",
+      "weight": 3,
+      "value": 2
+    },
+    {
+      "name": "Tortoise, desert",
+      "weight": 5,
+      "value": 3
+    },
+    {
+      "name": "Elk, Wapiti",
+      "weight": 5,
+      "value": 5
+    },
+    {
+      "name": "Silver gull",
+      "weight": 2,
+      "value": 4
+    },
+    {
+      "name": "Royal tern",
+      "weight": 3,
+      "value": 7
+    },
+    {
+      "name": "Mongoose, javan gold-spotted",
+      "weight": 1,
+      "value": 1
+    },
+    {
+      "name": "Lechwe, kafue flats",
+      "weight": 3,
+      "value": 4
+    },
+    {
+      "name": "Pelican, great white",
+      "weight": 1,
+      "value": 2
+    },
+    {
+      "name": "Elephant, asian",
+      "weight": 4,
+      "value": 1
+    },
+    {
+      "name": "Hanuman langur",
+      "weight": 5,
+      "value": 5
+    }
+  ]
+}
