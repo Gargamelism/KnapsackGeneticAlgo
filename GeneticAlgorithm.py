@@ -23,21 +23,19 @@ class GeneticAlgorithm:
         self.generations = []
         self.__initFirstGeneration()
 
-    @staticmethod
-    def __toKnapsack(knapsackConfig, knapsackItems: List[Item]):
-        fitness = GeneticAlgorithm.__calcKnapsackFitness(knapsackConfig, knapsackItems)
+    def __toKnapsack(self, knapsackConfig):
+        fitness = GeneticAlgorithm.__calcKnapsackFitness(knapsackConfig, self.items, self.weightLimit)
 
         return {
             'fitness': fitness,
             'knapsack': list(
-                map(lambda isIncluded, item: str(item) if isIncluded else None, knapsackConfig, knapsackItems))
+                map(lambda isIncluded, item: str(item) if isIncluded else None, knapsackConfig, self.items))
         }
 
     def generation(self, idx=-1):
         try:
             return list(
-                map(partial(self.__toKnapsack, knapsackItems=self.items),
-                    self.generations[idx])
+                map(self.__toKnapsack, self.generations[idx])
             )
         except IndexError:
             return None
@@ -72,7 +70,7 @@ class GeneticAlgorithm:
         return shouldStop
 
     @staticmethod
-    def __calcKnapsackFitness(knapsackConfig, knapsackItems: List[Item], maxWeight=0):
+    def __calcKnapsackFitness(knapsackConfig, knapsackItems: List[Item], maxWeight):
         totalWeight = 0
         totalValue = 0
         for idx, isInKnapsack in enumerate(knapsackConfig):
@@ -104,14 +102,14 @@ class GeneticAlgorithm:
 
     def __getGenerationFitnesses(self, generation):
         return list(
-            map(partial(self.__calcKnapsackFitness, knapsackItems=self.items, maxWeight=self.weightLimit),
-                generation))
+            map(lambda knapsackConfig: self.__calcKnapsackFitness(knapsackConfig, self.items, self.weightLimit), generation)
+        )
 
     def __updateNoImprovementCount(self, prevGenerationFitnesses, nextGenerationFitnesses):
         prevGenerationHighest = sorted(prevGenerationFitnesses, reverse=True)[0]
-        nextGenerationFitnesses = sorted(nextGenerationFitnesses, reverse=True)[0]
+        nextGenerationHighest = sorted(nextGenerationFitnesses, reverse=True)[0]
 
-        if (prevGenerationHighest >= nextGenerationFitnesses):
+        if (prevGenerationHighest >= nextGenerationHighest):
             self.noImprovementGenerationsCount += 1
         else:
             self.noImprovementGenerationsCount = 0
