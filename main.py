@@ -6,10 +6,24 @@ from functools import reduce
 import knapsackParser
 import GeneticAlgorithm
 
+PARENTS_COUNT = 20
+MAX_GENERATIONS = 500
+NO_IMPROVEMENT_GENERATIONS_COUNT = 15
+MUTATIONS_COUNT = 5
+
 
 def parseArgs():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-w', '--weight-limit', required=True, type=int, help='knapsack weight limit')
     parser.add_argument('-f', '--knapsack-file', required=True, help='file containing knapsack configuration')
+    parser.add_argument('-p', '--parents-count', default=PARENTS_COUNT, type=int, help='size of generation')
+    parser.add_argument('-g', '--max-generations', default=MAX_GENERATIONS, type=int,
+                        help='no matter result, stop at N generations')
+    parser.add_argument('-s', '--potential-fitness', required=False, type=int,
+                        help='if known, the best fitness possible')
+    parser.add_argument('-t', '--no-improvements-count', default=NO_IMPROVEMENT_GENERATIONS_COUNT, type=int,
+                        help='no matter result, stop at N generations')
+    parser.add_argument('-m', '--mutations-count', default=MUTATIONS_COUNT, type=int, help='genetic mutations count')
 
     return parser.parse_args()
 
@@ -31,8 +45,11 @@ def plotGenerations(generations):
 def main():
     parsedArgs = parseArgs()
     availableItems = knapsackParser.parseFile(parsedArgs.knapsack_file)
-    maxFitness = reduce(lambda maxFitness, item: maxFitness + item.value, availableItems, 0)
-    geneticAlgorithm = GeneticAlgorithm.GeneticAlgorithm(5, 15, availableItems, 20, maxFitness, 5, 3)
+    maxFitness = parsedArgs.potential_fitness if parsedArgs.potential_fitness else reduce(
+        lambda maxFitness, item: maxFitness + item.value, availableItems, 0)
+    geneticAlgorithm = GeneticAlgorithm.GeneticAlgorithm(parsedArgs.parents_count, parsedArgs.weight_limit,
+                                                         availableItems, parsedArgs.max_generations, maxFitness,
+                                                         parsedArgs.no_improvements_count, parsedArgs.mutations_count)
 
     generations = []
     for generation in geneticAlgorithm.advance():
