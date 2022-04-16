@@ -81,11 +81,16 @@ class GeneticAlgorithm:
         return totalValue if maxWeight == 0 or totalWeight < maxWeight else 0
 
     def __crossoverGeneration(self, generation):
-        return list(map(lambda knapsackA, knapsackB: [
-            knapsackA[:len(knapsackA) // 2] + knapsackB[len(knapsackB) // 2:],
-            knapsackB[:len(knapsackB) // 2] + knapsackA[len(knapsackA) // 2:]],
-                        generation,
-                        generation[1:]))[0]
+        crossedGenerations = list(map(lambda knapsackA, knapsackB:
+                                      knapsackA[len(knapsackA) // 2:] +
+                                      knapsackB[:len(knapsackB) // 2],
+                                      generation,
+                                      generation[1:]))
+
+        # joining in this manner will always produce n-1 lists
+        crossedGenerations.append(generation[-1])
+
+        return crossedGenerations
 
     @staticmethod
     def __flipNCells(knapsack, count):
@@ -102,7 +107,8 @@ class GeneticAlgorithm:
 
     def __getGenerationFitnesses(self, generation):
         return list(
-            map(lambda knapsackConfig: self.__calcKnapsackFitness(knapsackConfig, self.items, self.weightLimit), generation)
+            map(lambda knapsackConfig: self.__calcKnapsackFitness(knapsackConfig, self.items, self.weightLimit),
+                generation)
         )
 
     def __updateNoImprovementCount(self, prevGenerationFitnesses, nextGenerationFitnesses):

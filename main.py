@@ -2,6 +2,8 @@ import argparse
 import seaborn as seaborn
 import matplotlib.pyplot as pyplot
 from functools import reduce
+import numpy
+from statistics import mean
 
 import knapsackParser
 import GeneticAlgorithm
@@ -10,6 +12,7 @@ PARENTS_COUNT = 20
 MAX_GENERATIONS = 500
 NO_IMPROVEMENT_GENERATIONS_COUNT = 15
 MUTATIONS_COUNT = 5
+GRAPH_CHUNK_SIZE = 50
 
 
 def parseArgs():
@@ -24,21 +27,49 @@ def parseArgs():
     parser.add_argument('-t', '--no-improvements-count', default=NO_IMPROVEMENT_GENERATIONS_COUNT, type=int,
                         help='no matter result, stop at N generations')
     parser.add_argument('-m', '--mutations-count', default=MUTATIONS_COUNT, type=int, help='genetic mutations count')
+    parser.add_argument('-a', '--chunk-generations-size', default=GRAPH_CHUNK_SIZE, type=int,
+                        help='chunk graphs to keep it clear')
 
     return parser.parse_args()
 
 
-def plotGenerations(generations):
+def chunks(list, chunkSize):
+    for i in range(0, len(list), chunkSize):
+        yield list[i:i + chunkSize]
+
+
+def extractSortedFitness(generation):
+    return sorted(map(lambda knapsackConf: knapsackConf['fitness'], generation))
+
+
+def chunkFitnesses(generationChunk):
+    chunkSortedFitnesses = list(map(lambda generation: extractSortedFitness(generation), generationChunk))
+    cleanChunkGroups = map(lambda fitnessesChunk:
+                           filter(lambda fitness: fitness > 0, fitnessesChunk),
+                           numpy.array(chunkSortedFitnesses).transpose())
+    return list(
+        map(lambda cleanFitnessesChunk: mean(cleanFitnessesChunk), cleanChunkGroups)
+    )
+
+
+def plotGenerations(generations, chunkSize=1):
+    if (chunkSize >= len(generations)):
+        chunkSize = 1
+
     # format generations for plotting
     generationsFitness = {'fitness': [], 'generation': []}
-    for idx, generation in enumerate(generations):
-        generationNum = idx + 1
-        for knapsackConf in generation:
-            generationsFitness['fitness'].append(knapsackConf['fitness'])
-            generationsFitness['generation'].append(generationNum)
+    for idx, generationChunk in enumerate(chunks(generations, chunkSize)):
+        generationNum = idx * chunkSize
+
+        for fitness in chunkFitnesses(generationChunk):
+            generationsFitness['generation'].append(f'{generationNum}-{generationNum + chunkSize}')
+            generationsFitness['fitness'].append(fitness)
 
     seaborn.set_theme(style='darkgrid')
-    seaborn.relplot(x='generation', y='fitness', data=generationsFitness)
+    plot = seaborn.scatterplot(x='generation', y='fitness', data=generationsFitness)
+    plot.set_xlabel('Generations Range')
+    plot.set_ylabel('Fitness Mean')
+
     pyplot.show()
 
 
@@ -55,7 +86,7 @@ def main():
     for generation in geneticAlgorithm.advance():
         generations.append(generation)
 
-    plotGenerations(generations)
+    plotGenerations(generations, parsedArgs.chunk_generations_size)
 
 
 # Press the green button in the gutter to run the script.
