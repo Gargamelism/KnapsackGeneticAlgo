@@ -1,69 +1,89 @@
+import random
 from random import randint, sample
 from functools import partial
 from typing import List
+from pandas import Series
 
 from knapsackParser import Item
 
 
 class GeneticAlgorithm:
+    ENDLESS_GENERATIONS = -1
+
     def __init__(self, parentsCount, weightLimit, items, maxGenerations, potentialFitness,
-                 noImprovementGenerationsCount, mutationsCount):
-        self.parentsCount = parentsCount
-        self.weightLimit = weightLimit
-        self.mutationsCount = mutationsCount
+                 noImprovementGenerationsCount, mutationsCount, crossOverProbability, mutationProbability):
+        self._parentsCount = parentsCount
+        self._weightLimit = weightLimit
+        self._mutationsCount = mutationsCount
+        self._crossOverProbability = crossOverProbability
+        self._mutationProbability = mutationProbability
 
-        self.maxGenerations = maxGenerations
-        self.potentialFitness = potentialFitness
-        self.noImprovementGenerations = noImprovementGenerationsCount
-        self.noImprovementGenerationsCount = 0
+        self._maxGenerations = maxGenerations
+        self._potentialFitness = potentialFitness
+        self._noImprovementGenerations = noImprovementGenerationsCount
+        self._noImprovementGenerationsCount = 0
 
-        self.items = items
-        self.itemsCount = len(items)
+        self._items = items
+        self._itemsCount = len(items)
 
-        self.generations = []
+        self._currentGeneration = []
+        self._generationsStatistics = []
         self.__initFirstGeneration()
 
     def __toKnapsack(self, knapsackConfig):
-        fitness = GeneticAlgorithm.__calcKnapsackFitness(knapsackConfig, self.items, self.weightLimit)
+        fitness = GeneticAlgorithm.__calcKnapsackFitness(knapsackConfig, self._items, self._weightLimit)
 
         return {
             'fitness': fitness,
             'knapsack': list(
-                map(lambda isIncluded, item: str(item) if isIncluded else None, knapsackConfig, self.items))
+                map(lambda isIncluded, item: str(item) if isIncluded else None, knapsackConfig, self._items))
         }
 
-    def generation(self, idx=-1):
+    def __fromKnapsack(self, knapsackDetails):
+        return [item if item == None else True for item in knapsackDetails['knapsack']]
+
+    @property
+    def currentGeneration(self):
         try:
             return list(
-                map(self.__toKnapsack, self.generations[idx])
+                map(self.__toKnapsack, self._currentGeneration)
             )
         except IndexError:
             return None
 
+    @currentGeneration.setter
+    def currentGeneration(self, generation):
+        self._currentGeneration = generation
+        generationFitnesses = list(
+            map(lambda knapsack: GeneticAlgorithm.__calcKnapsackFitness(knapsack, self._items, self._weightLimit),
+                generation)
+        )
+
+        self._generationsStatistics.append(Series(generationFitnesses).describe())
+
     def __createRandomSack(self):
-        return [True if randint(0, 1) == 1 else False for _ in range(self.itemsCount)]
+        return [True if randint(0, 1) == 1 else False for _ in range(self._itemsCount)]
 
     def __initFirstGeneration(self):
-        self.generations.append([self.__createRandomSack() for _ in range(self.parentsCount)])
+        self.currentGeneration = [self.__createRandomSack() for _ in range(self._parentsCount)]
 
     def __hasExceededPotentialFitness(self):
-        latestGenerationFitnesses = self.__getGenerationFitnesses(self.generations[-1])
-        latestGenerationHighestFitness = sorted(latestGenerationFitnesses, reverse=True)[0]
+        latestGenerationHighestFitness = self._generationsStatistics[-1].get('max')
 
         # user can stop before "best possible result"
-        return latestGenerationHighestFitness >= self.potentialFitness
+        return latestGenerationHighestFitness >= self._potentialFitness
 
     def __hasExceededNoImprovementLimit(self):
-        return len(self.generations) > self.noImprovementGenerations <= self.noImprovementGenerationsCount
+        return len(self._generationsStatistics) > self._noImprovementGenerations == self._noImprovementGenerationsCount
 
     def __shouldStopGenerationsCondition(self):
         shouldStop = True
-        if len(self.generations) >= self.maxGenerations:
+        if self._maxGenerations != self.ENDLESS_GENERATIONS and len(self._generationsStatistics) >= self._maxGenerations:
             print('Done: reached max generations')
         elif self.__hasExceededPotentialFitness():
-            print(f'Done: exceeded potential fitness <{self.potentialFitness}>')
+            print(f'Done: exceeded potential fitness <{self._potentialFitness}>')
         elif self.__hasExceededNoImprovementLimit():
-            print(f'Done: exceeded no improvement in <{self.noImprovementGenerationsCount}>')
+            print(f'Done: exceeded no improvement in <{self._noImprovementGenerationsCount}>')
         else:
             shouldStop = False
 
@@ -80,62 +100,74 @@ class GeneticAlgorithm:
 
         return totalValue if maxWeight == 0 or totalWeight < maxWeight else 0
 
-    def __crossoverGeneration(self, generation):
-        crossedGenerations = list(map(lambda knapsackA, knapsackB:
-                                      knapsackA[len(knapsackA) // 2:] +
-                                      knapsackB[:len(knapsackB) // 2],
-                                      generation,
-                                      generation[1:]))
-
-        # joining in this manner will always produce n-1 lists
-        crossedGenerations.append(generation[-1])
-
-        return crossedGenerations
-
-    @staticmethod
-    def __flipNCells(knapsack, count):
-        flipIdxs = sample(range(0, len(knapsack)), count)
-
-        newKnapsack = knapsack.copy()
-        for idx in flipIdxs:
-            newKnapsack[idx] = not newKnapsack[idx]
-
-        return newKnapsack
-
-    def __mutateGeneration(self, generation, mutationsCount):
-        return list(map(partial(self.__flipNCells, count=mutationsCount), generation))
-
-    def __getGenerationFitnesses(self, generation):
-        return list(
-            map(lambda knapsackConfig: self.__calcKnapsackFitness(knapsackConfig, self.items, self.weightLimit),
-                generation)
-        )
-
-    def __updateNoImprovementCount(self, prevGenerationFitnesses, nextGenerationFitnesses):
-        prevGenerationHighest = sorted(prevGenerationFitnesses, reverse=True)[0]
-        nextGenerationHighest = sorted(nextGenerationFitnesses, reverse=True)[0]
-
-        if (prevGenerationHighest >= nextGenerationHighest):
-            self.noImprovementGenerationsCount += 1
+    def __updateNoImprovementCount(self, prevGenerationMaxFitness, currentGenerationMaxFitness):
+        if (prevGenerationMaxFitness >= currentGenerationMaxFitness):
+            self._noImprovementGenerationsCount += 1
         else:
-            self.noImprovementGenerationsCount = 0
+            self._noImprovementGenerationsCount = 0
+
+    def __selectParents(self, currentGeneration):
+        currentGenerationFitnesses = [generation['fitness'] for generation in currentGeneration]
+        fitnessSum = sum(currentGenerationFitnesses)
+        if fitnessSum == 0:
+            currentGenerationFitnesses = None
+        return random.choices(currentGeneration, weights=currentGenerationFitnesses, k=len(currentGeneration))
+
+    def __crossPair(self, parentA, parentB):
+        [startingCrossIdx, endingCrossIdx] = sorted(random.choices(range(0, len(parentA)), k=2))
+        parentABlock = parentA[startingCrossIdx:endingCrossIdx]
+        parentBBlock = parentB[startingCrossIdx:endingCrossIdx]
+
+        return [parentA[:startingCrossIdx] + parentBBlock + parentA[endingCrossIdx:],
+                parentB[:startingCrossIdx] + parentABlock + parentB[endingCrossIdx:], ]
+
+    def __crossParents(self, parents):
+        crossedChildren = [
+            self.__crossPair(parents[0], parents[1]) if random.random() > self._crossOverProbability else [parents[0],
+                                                                                                           parents[1]]
+            for parents in zip(parents[::2], parents[1::2])
+        ]
+
+        # flatten pairs
+        crossedChildren = [parent for parentPairs in crossedChildren for parent in parentPairs]
+
+        # last parent in an odd list can't be crossed
+        if ((len(parents) % 2) != 0):
+            crossedChildren.append(parents[-1])
+
+        return crossedChildren
+
+    def __flipNCells(self, parent, flipCount):
+        flipIdxs = sample(range(0, len(parent)), flipCount)
+
+        child = parent.copy()
+        for idx in flipIdxs:
+            child[idx] = not parent[idx]
+
+        return child
+
+    def __mutateParents(self, parents):
+        mutatedChildren = [
+            self.__flipNCells(parent, self._mutationsCount) if random.random() < self._mutationProbability else parent
+            for parent in parents
+        ]
+
+        return mutatedChildren
+
+    def __mateAndMutate(self, parents):
+        parentsConf = [self.__fromKnapsack(knapsack) for knapsack in parents]
+
+        crossedChildren = self.__crossParents(parentsConf)
+        mutatedChildren = self.__mutateParents(crossedChildren)
+
+        return mutatedChildren
 
     def advance(self):
         while (not self.__shouldStopGenerationsCondition()):
-            currentGeneration = self.generations[-1]
-            currentGenerationFitnesses = self.__getGenerationFitnesses(currentGeneration)
-            generationByFitness = [knapsack for _, knapsack in
-                                   sorted(zip(currentGenerationFitnesses, currentGeneration))]
+            parents = self.__selectParents(self.currentGeneration)
+            newGeneration = self.__mateAndMutate(parents)
+            self.currentGeneration = newGeneration
+            self.__updateNoImprovementCount(self._generationsStatistics[-2].get('max'),
+                                            self._generationsStatistics[-1].get('max'))
 
-            # crossover first half
-            crossedLowerFitness = self.__crossoverGeneration(generationByFitness[:len(generationByFitness) // 2])
-            # mutate second half
-            mutatedHigherFitness = self.__mutateGeneration(generationByFitness[len(generationByFitness) // 2:],
-                                                           self.mutationsCount)
-            self.generations.append(crossedLowerFitness + mutatedHigherFitness)
-
-            newGeneration = self.generations[-1]
-            newGenerationFitnesses = self.__getGenerationFitnesses(newGeneration)
-            self.__updateNoImprovementCount(currentGenerationFitnesses, newGenerationFitnesses)
-
-            yield self.generation(-1)
+            yield self._generationsStatistics[-1]

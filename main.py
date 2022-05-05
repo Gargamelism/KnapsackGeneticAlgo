@@ -2,8 +2,7 @@ import argparse
 import seaborn as seaborn
 import matplotlib.pyplot as pyplot
 from functools import reduce
-import numpy
-from statistics import mean
+import pandas
 
 import knapsackParser
 import GeneticAlgorithm
@@ -12,7 +11,9 @@ PARENTS_COUNT = 20
 MAX_GENERATIONS = 500
 NO_IMPROVEMENT_GENERATIONS_COUNT = 15
 MUTATIONS_COUNT = 5
-GRAPH_CHUNK_SIZE = 50
+GRAPH_ROLLING_WINDOW = 50
+CROSS_OVER_PROBABILITY = 0.7
+MUTATION_PROBABILITY = 0.001
 
 
 def parseArgs():
@@ -27,48 +28,28 @@ def parseArgs():
     parser.add_argument('-t', '--no-improvements-count', default=NO_IMPROVEMENT_GENERATIONS_COUNT, type=int,
                         help='no matter result, stop at N generations')
     parser.add_argument('-m', '--mutations-count', default=MUTATIONS_COUNT, type=int, help='genetic mutations count')
-    parser.add_argument('-a', '--chunk-generations-size', default=GRAPH_CHUNK_SIZE, type=int,
+    parser.add_argument('-r', '--graph-rolling-window', default=GRAPH_ROLLING_WINDOW, type=int,
                         help='chunk graphs to keep it clear')
+    parser.add_argument('-c', '--cross-over-probability', default=CROSS_OVER_PROBABILITY, type=float,
+                        help='random draw has to be higher than this to cross over')
+    parser.add_argument('-u', '--mutation-probability', default=MUTATION_PROBABILITY, type=float,
+                        help='random draw has to be lower than this to mutate')
 
     return parser.parse_args()
 
 
-def chunks(list, chunkSize):
-    for i in range(0, len(list), chunkSize):
-        yield list[i:i + chunkSize]
+def plotGenerations(generationsStats):
+    formattedGenerations = {
+        'fitness': [generationStats.get('max') for generationStats in generationsStats],
+        'generation': list(range(1, len(generationsStats) + 1))
+    }
 
-
-def extractSortedFitness(generation):
-    return sorted(map(lambda knapsackConf: knapsackConf['fitness'], generation))
-
-
-def chunkFitnesses(generationChunk):
-    chunkSortedFitnesses = list(map(lambda generation: extractSortedFitness(generation), generationChunk))
-    cleanChunkGroups = map(lambda fitnessesChunk:
-                           filter(lambda fitness: fitness > 0, fitnessesChunk),
-                           numpy.array(chunkSortedFitnesses).transpose())
-    return list(
-        map(lambda cleanFitnessesChunk: mean(cleanFitnessesChunk), cleanChunkGroups)
-    )
-
-
-def plotGenerations(generations, chunkSize=1):
-    if (chunkSize >= len(generations)):
-        chunkSize = 1
-
-    # format generations for plotting
-    generationsFitness = {'fitness': [], 'generation': []}
-    for idx, generationChunk in enumerate(chunks(generations, chunkSize)):
-        generationNum = idx * chunkSize
-
-        for fitness in chunkFitnesses(generationChunk):
-            generationsFitness['generation'].append(f'{generationNum}-{generationNum + chunkSize}')
-            generationsFitness['fitness'].append(fitness)
+    generationsStatsDataFrame = pandas.DataFrame(formattedGenerations)
 
     seaborn.set_theme(style='darkgrid')
-    plot = seaborn.scatterplot(x='generation', y='fitness', data=generationsFitness)
-    plot.set_xlabel('Generations Range')
-    plot.set_ylabel('Fitness Mean')
+    plot = seaborn.lineplot(x='generation', y='fitness', data=generationsStatsDataFrame.rolling(50).mean())
+    plot.set_xlabel('Generations')
+    plot.set_ylabel('Fitness Max')
 
     pyplot.show()
 
@@ -80,13 +61,15 @@ def main():
         lambda maxFitness, item: maxFitness + item.value, availableItems, 0)
     geneticAlgorithm = GeneticAlgorithm.GeneticAlgorithm(parsedArgs.parents_count, parsedArgs.weight_limit,
                                                          availableItems, parsedArgs.max_generations, maxFitness,
-                                                         parsedArgs.no_improvements_count, parsedArgs.mutations_count)
+                                                         parsedArgs.no_improvements_count, parsedArgs.mutations_count,
+                                                         parsedArgs.cross_over_probability,
+                                                         parsedArgs.mutation_probability)
 
-    generations = []
-    for generation in geneticAlgorithm.advance():
-        generations.append(generation)
+    generationsStats = []
+    for generationStats in geneticAlgorithm.advance():
+        generationsStats.append(generationStats)
 
-    plotGenerations(generations, parsedArgs.chunk_generations_size)
+    plotGenerations(generationsStats)
 
 
 # Press the green button in the gutter to run the script.
