@@ -30,6 +30,9 @@ class GeneticAlgorithm:
         self._generationsStatistics = []
         self.__initFirstGeneration()
 
+        # good for understanding what is a good value for this
+        self._maxNoImprovements = 0
+
     def __toKnapsack(self, knapsackConfig):
         fitness = GeneticAlgorithm.__calcKnapsackFitness(knapsackConfig, self._items, self._weightLimit)
 
@@ -101,6 +104,8 @@ class GeneticAlgorithm:
         return totalValue if maxWeight == 0 or totalWeight < maxWeight else 0
 
     def __updateNoImprovementCount(self, prevGenerationMaxFitness, currentGenerationMaxFitness):
+        self._maxNoImprovements = max(self._noImprovementGenerationsCount, self._maxNoImprovements)
+
         if (prevGenerationMaxFitness >= currentGenerationMaxFitness):
             self._noImprovementGenerationsCount += 1
         else:
